@@ -1,0 +1,6 @@
+# 数据缓存（由 GitHub Actions cache 持久化，不入库）
+cache/
+
+# Python
+__pycache__/
+*.pyc
