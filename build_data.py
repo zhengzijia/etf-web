@@ -327,6 +327,23 @@ def main():
         f.write(html)
     print(f"\n已生成 {out_html}")
 
+    # 4. 微信推送（可选，SERVER_KEY 环境变量存在时）
+    sendkey = os.environ.get("SERVER_KEY")
+    if sendkey:
+        parts = []
+        for name in result:
+            ratio_map = result[name]["ratio"]
+            if ratio_map:
+                parts.append(f"{name} {ratio_map[max(ratio_map)]:.2f}%")
+        title = f"📊 ETF占比更新 {today.strftime('%Y-%m-%d')}"
+        content = "前10大ETF市值 / 指数流通市值\n" + " · ".join(parts)
+        try:
+            r = requests.post(f"https://sctapi.ftqq.com/{sendkey}.send",
+                              data={"title": title, "desp": content}, timeout=15)
+            print(f"微信推送: code={r.json().get('code')}")
+        except Exception as e:
+            print(f"微信推送失败: {e}")
+
 
 def render_html(result):
     """生成自包含 HTML（内嵌数据 + ECharts，每指数一张双轴图）。"""

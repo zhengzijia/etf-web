@@ -2,7 +2,7 @@ name: Update web data
 
 on:
   schedule:
-    - cron: "30 14 * * 1-5"  # 22:30 CST（收盘后，周一到周五）
+    - cron: "0 8 * * 1-5"  # 16:00 CST（收盘后，周一到周五）
   workflow_dispatch:
 
 permissions:
@@ -23,6 +23,8 @@ jobs:
           key: web-cache-${{ github.run_id }}
           restore-keys: web-cache-
       - run: python build_data.py
+        env:
+          SERVER_KEY: ${{ secrets.SERVER_KEY }}
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
