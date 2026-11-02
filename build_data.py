@@ -292,6 +292,12 @@ def main():
         for code in top_codes:
             for d, v in etf_aum[code].items():
                 total_aum[d] = total_aum.get(d, 0.0) + v
+        # 汇总前 N 大的份额
+        total_shares = {}
+        for code in top_codes:
+            shares_map = szse.get(code) or sse.get(code) or {}
+            for d, sh in shares_map.items():
+                total_shares[d] = total_shares.get(d, 0.0) + sh
         # 指数总市值历史 = 当前总市值 × (点位/最新点位)
         mcap_now = fetch_index_mcap(meta["secid"])
         if mcap_now is None:
@@ -310,6 +316,7 @@ def main():
         result[name] = {
             "top_codes": top_codes,
             "etf_aum_total": total_aum,   # 元
+            "total_shares": total_shares, # 份
             "mcap": mcap_series,          # 元
             "ratio": ratio,               # %
             "mcap_now": mcap_now,
@@ -330,13 +337,27 @@ def main():
     # 4. 微信推送（可选，SERVER_KEY 环境变量存在时）
     sendkey = os.environ.get("SERVER_KEY")
     if sendkey:
-        parts = []
+        lines = []
         for name in result:
             ratio_map = result[name]["ratio"]
-            if ratio_map:
-                parts.append(f"{name} {ratio_map[max(ratio_map)]:.2f}%")
+            shares_map = result[name].get("total_shares", {})
+            if not ratio_map:
+                continue
+            ds = sorted(ratio_map)
+            cur_d, prev_d = ds[-1], (ds[-2] if len(ds) >= 2 else None)
+            cur_r = ratio_map[cur_d]
+            ratio_delta = ratio_map[cur_d] - ratio_map[prev_d] if prev_d else 0.0
+            share_delta = 0.0
+            if prev_d and cur_d in shares_map and prev_d in shares_map:
+                share_delta = shares_map[cur_d] - shares_map[prev_d]
+            seg = f"{name} {cur_r:.2f}%"
+            if prev_d:
+                seg += f"({ratio_delta:+.2f}pp)"
+            if share_delta:
+                seg += f" 份额{share_delta / 1e8:+.1f}亿份"
+            lines.append(seg)
         title = f"📊 ETF占比更新 {today.strftime('%Y-%m-%d')}"
-        content = "前10大ETF市值 / 指数流通市值\n" + " · ".join(parts)
+        content = "前10大ETF市值 / 指数流通市值\n" + "\n".join(lines)
         try:
             r = requests.post(f"https://sctapi.ftqq.com/{sendkey}.send",
                               data={"title": title, "desp": content}, timeout=15)
