@@ -221,15 +221,16 @@ def fetch_index_mcap(secid):
 # ============ 主流程 ============
 def main():
     today = datetime.now()
+    end_str = today.strftime("%Y-%m-%d")  # 动态结束日期（含今天）
 
     # 1. 深交所份额（有缓存则增量，否则全量）
     szse = load_cache("szse_shares") or {}
     if not szse:
         print("首次拉取深交所份额（全量）...")
-        szse = fetch_szse_shares(START, END)
+        szse = fetch_szse_shares(START, end_str)
     else:
         recent_start = (today - timedelta(days=RECENT_DAYS)).strftime("%Y-%m-%d")
-        _merge(szse, fetch_szse_shares(recent_start, END))
+        _merge(szse, fetch_szse_shares(recent_start, end_str))
     save_cache("szse_shares", szse)
     print(f"深交所份额: {len(szse)} 只基金")
 
