@@ -377,9 +377,11 @@ def render_html(result):
     for name, r in result.items():
         ratio_map = r["ratio"]
         level_map = r.get("level", {})
+        shares_map = r.get("total_shares", {})
         payload["series"][name] = {
             "ratio": [round(ratio_map.get(d, None), 3) if d in ratio_map else None for d in all_dates],
             "level": [round(level_map.get(d, None), 1) if d in level_map else None for d in all_dates],
+            "shares": [round(shares_map.get(d, None), 0) if d in shares_map else None for d in all_dates],
             "top_codes": r["top_codes"],
             "mcap_now": r["mcap_now"],
         }
@@ -423,11 +425,23 @@ const charts = [];
 Object.entries(series).forEach(function(entry, idx) {
   var name = entry[0], s = entry[1];
   var latest = '';
-  for (var i = s.ratio.length - 1; i >= 0; i--) {
-    if (s.ratio[i] != null && s.level[i] != null) {
-      latest = '<div class="latest">' + dates[i] + ' · 占比 ' + s.ratio[i].toFixed(2) + '% · 点位 ' + s.level[i].toFixed(1) + '</div>';
-      break;
+  var validIdx = [];
+  for (var i = s.ratio.length - 1; i >= 0 && validIdx.length < 2; i--) {
+    if (s.ratio[i] != null) validIdx.push(i);
+  }
+  if (validIdx.length > 0) {
+    var i0 = validIdx[0], i1 = validIdx[1];
+    var txt = dates[i0] + ' · 占比 ' + s.ratio[i0].toFixed(2) + '%';
+    if (i1 != null) {
+      var rd = s.ratio[i0] - s.ratio[i1];
+      txt += '(' + (rd >= 0 ? '+' : '') + rd.toFixed(2) + 'pp)';
+      if (s.shares[i0] != null && s.shares[i1] != null) {
+        var sd = (s.shares[i0] - s.shares[i1]) / 1e8;
+        txt += ' · 份额' + (sd >= 0 ? '+' : '') + sd.toFixed(1) + '亿份';
+      }
     }
+    txt += ' · 点位 ' + s.level[i0].toFixed(1);
+    latest = '<div class="latest">' + txt + '</div>';
   }
   var card = document.createElement('div');
   card.className = 'card';
