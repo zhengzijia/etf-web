@@ -44,13 +44,16 @@ Object.entries(series).forEach(function(entry, idx) {
     var txt = dates[i0] + ' · 占比 ' + s.ratio[i0].toFixed(2) + '%';
     if (i1 != null) {
       var rd = s.ratio[i0] - s.ratio[i1];
-      txt += '(' + (rd >= 0 ? '+' : '') + rd.toFixed(2) + 'pp)';
-      if (s.shares[i0] != null && s.shares[i1] != null) {
+      txt += '（' + (rd >= 0 ? '+' : '') + rd.toFixed(2) + 'pp）';
+    }
+    if (s.shares[i0] != null) {
+      txt += '；份额 ' + (s.shares[i0] / 1e8).toFixed(1) + '亿份';
+      if (i1 != null && s.shares[i1] != null) {
         var sd = (s.shares[i0] - s.shares[i1]) / 1e8;
-        txt += ' · 份额' + (sd >= 0 ? '+' : '') + sd.toFixed(1) + '亿份';
+        txt += '（' + (sd >= 0 ? '+' : '') + sd.toFixed(1) + '亿份）';
       }
     }
-    txt += ' · 点位 ' + s.level[i0].toFixed(1);
+    txt += '；指数点位 ' + s.level[i0].toFixed(1);
     latest = '<div class="latest">' + txt + '</div>';
   }
   var card = document.createElement('div');
