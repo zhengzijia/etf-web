@@ -341,23 +341,23 @@ def main():
         for name in result:
             ratio_map = result[name]["ratio"]
             shares_map = result[name].get("total_shares", {})
+            level_map = result[name].get("level", {})
             if not ratio_map:
                 continue
             ds = sorted(ratio_map)
             cur_d, prev_d = ds[-1], (ds[-2] if len(ds) >= 2 else None)
-            cur_r = ratio_map[cur_d]
-            ratio_delta = ratio_map[cur_d] - ratio_map[prev_d] if prev_d else 0.0
-            share_delta = 0.0
-            if prev_d and cur_d in shares_map and prev_d in shares_map:
-                share_delta = shares_map[cur_d] - shares_map[prev_d]
-            seg = f"{name} {cur_r:.2f}%"
+            seg = f"占比 {ratio_map[cur_d]:.2f}%"
             if prev_d:
-                seg += f"({ratio_delta:+.2f}pp)"
-            if share_delta:
-                seg += f" 份额{share_delta / 1e8:+.1f}亿份"
-            lines.append(seg)
+                seg += f"（{ratio_map[cur_d] - ratio_map[prev_d]:+.2f}pp）"
+            if cur_d in shares_map:
+                seg += f"；份额 {shares_map[cur_d] / 1e8:.1f}亿份"
+                if prev_d in shares_map:
+                    seg += f"（{(shares_map[cur_d] - shares_map[prev_d]) / 1e8:+.1f}亿份）"
+            if cur_d in level_map:
+                seg += f"；指数点位 {level_map[cur_d]:.1f}"
+            lines.append(f"- {name} · {seg}")
         title = f"📊 ETF占比更新 {today.strftime('%Y-%m-%d')}"
-        content = "前10大ETF市值 / 指数流通市值\n" + "\n".join(lines)
+        content = "前10大ETF市值 / 指数流通市值\n\n" + "\n".join(lines)
         try:
             r = requests.post(f"https://sctapi.ftqq.com/{sendkey}.send",
                               data={"title": title, "desp": content}, timeout=15)
