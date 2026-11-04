@@ -2,7 +2,7 @@ name: Update web data
 
 on:
   schedule:
-    - cron: "0 1 * * 1-5"  # 09:00 CST（次日早间，份额与价格对齐，周一到周五）
+    - cron: "30 22 * * 0-4"  # 06:30 CST（凌晨更新，UTC 22:30 前一自然日，周一到周五）
   workflow_dispatch:
 
 permissions:
