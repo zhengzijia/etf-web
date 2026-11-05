@@ -288,17 +288,27 @@ def main():
         # 按最新 AUM 排序，取前 N
         latest_aum = {c: max(s.values()) for c, s in etf_aum.items() if s}
         top_codes = sorted(latest_aum, key=latest_aum.get, reverse=True)[:TOP_N]
-        # 汇总前 N 大的 AUM
+        # 只保留「所有 top_codes 都有份额」的完整日期（深市份额发布晚于沪市，
+        # 数据不全的当天若参与汇总，会导致占比虚降）
+        complete_dates = None
+        for code in top_codes:
+            shares_map = szse.get(code) or sse.get(code) or {}
+            complete_dates = (set(shares_map.keys()) if complete_dates is None
+                             else complete_dates & set(shares_map.keys()))
+        complete_dates = complete_dates or set()
+        # 汇总前 N 大的 AUM（仅完整日期）
         total_aum = {}
         for code in top_codes:
             for d, v in etf_aum[code].items():
-                total_aum[d] = total_aum.get(d, 0.0) + v
-        # 汇总前 N 大的份额
+                if d in complete_dates:
+                    total_aum[d] = total_aum.get(d, 0.0) + v
+        # 汇总前 N 大的份额（仅完整日期）
         total_shares = {}
         for code in top_codes:
             shares_map = szse.get(code) or sse.get(code) or {}
             for d, sh in shares_map.items():
-                total_shares[d] = total_shares.get(d, 0.0) + sh
+                if d in complete_dates:
+                    total_shares[d] = total_shares.get(d, 0.0) + sh
         # 指数总市值历史 = 当前总市值 × (点位/最新点位)
         mcap_now = fetch_index_mcap(meta["secid"])
         if mcap_now is None:
