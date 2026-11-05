@@ -288,27 +288,23 @@ def main():
         # 按最新 AUM 排序，取前 N
         latest_aum = {c: max(s.values()) for c, s in etf_aum.items() if s}
         top_codes = sorted(latest_aum, key=latest_aum.get, reverse=True)[:TOP_N]
-        # 只保留「所有 top_codes 都有份额」的完整日期（深市份额发布晚于沪市，
-        # 数据不全的当天若参与汇总，会导致占比虚降）
-        complete_dates = None
-        for code in top_codes:
-            shares_map = szse.get(code) or sse.get(code) or {}
-            complete_dates = (set(shares_map.keys()) if complete_dates is None
-                             else complete_dates & set(shares_map.keys()))
-        complete_dates = complete_dates or set()
-        # 汇总前 N 大的 AUM（仅完整日期）
+        # 汇总前 N 大的 AUM / 份额（所有日期，历史日期 ETF 未上市时自然缺失是正常的）
         total_aum = {}
         for code in top_codes:
-            for d, v in etf_aum[code].items():
-                if d in complete_dates:
-                    total_aum[d] = total_aum.get(d, 0.0) + v
-        # 汇总前 N 大的份额（仅完整日期）
+            for d, v in etf_aum.get(code, {}).items():
+                total_aum[d] = total_aum.get(d, 0.0) + v
         total_shares = {}
         for code in top_codes:
             shares_map = szse.get(code) or sse.get(code) or {}
             for d, sh in shares_map.items():
-                if d in complete_dates:
-                    total_shares[d] = total_shares.get(d, 0.0) + sh
+                total_shares[d] = total_shares.get(d, 0.0) + sh
+        # 只剔除「尾部」不完整日期（深市份额 T+1 晚发布，只影响最新 1-2 天）：
+        # 从最新日期往回，剔除到第一个「所有 top_codes 都有份额」的完整日期为止
+        for d in sorted(total_shares.keys(), reverse=True):
+            if all((szse.get(c) or sse.get(c) or {}).get(d) is not None for c in top_codes):
+                break
+            total_aum.pop(d, None)
+            total_shares.pop(d, None)
         # 指数总市值历史 = 当前总市值 × (点位/最新点位)
         mcap_now = fetch_index_mcap(meta["secid"])
         if mcap_now is None:
@@ -398,6 +394,7 @@ def render_html(result):
         }
 
     data_json = json.dumps(payload, ensure_ascii=False)
+    update_time = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     return """<!DOCTYPE html>
 <html lang="zh-CN">
@@ -421,7 +418,7 @@ def render_html(result):
 <body>
 <header>
   <h1>宽基ETF市值 占 指数流通市值 比例（前10大ETF之和）</h1>
-  <div class="sub">区间 2023-01 至今 · 流通市值按「当前流通市值 × 指数点位比例」估算 · 左轴比例% / 右轴指数点位 · 数据源：沪深交易所/东财/新浪</div>
+  <div class="sub">更新时间 __UPDATE_TIME__ · 区间 2023-01 至今 · 流通市值按「当前流通市值 × 指数点位比例」估算 · 数据源：沪深交易所/东财/新浪</div>
 </header>
 <div class="wrap">
   <div id="charts"></div>
@@ -493,7 +490,7 @@ window.addEventListener('resize', function() { charts.forEach(function(c) { c.re
 </script>
 </body>
 </html>
-""".replace("__DATA__", data_json)
+""".replace("__DATA__", data_json).replace("__UPDATE_TIME__", update_time)
 
 
 if __name__ == "__main__":
