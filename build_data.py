@@ -183,21 +183,39 @@ def fetch_sse_shares(dates):
 # ============ ETF 价格（≈净值，宽基ETF溢价极小） ============
 def fetch_price(code, datalen=1023):
     """新浪 ETF 日线收盘价。宽基ETF价格≈净值（溢价<0.5%），
-    且用户口径「市值」= 份额×价格。返回 {date: close}"""
+    且用户口径「市值」= 份额×价格。返回 {date: close}（失败返回空，不崩溃）"""
     prefix = "sh" if code.startswith(("5", "6", "9")) else "sz"
-    r = requests.get("https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData",
-                     params={"symbol": f"{prefix}{code}", "scale": "240", "ma": "no", "datalen": str(datalen)},
-                     headers=UA, timeout=30)
-    return {d["day"]: float(d["close"]) for d in r.json()}
+    url = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"
+    params = {"symbol": f"{prefix}{code}", "scale": "240", "ma": "no", "datalen": str(datalen)}
+    for attempt in range(3):
+        try:
+            r = requests.get(url, params=params, headers=UA, timeout=45)
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, list) and data:
+                return {d["day"]: float(d["close"]) for d in data}
+        except Exception:
+            pass
+        time.sleep(2)
+    return {}
 
 
 # ============ 指数点位 & 总市值 ============
 def fetch_index_level(sina_symbol, datalen=1023):
-    """新浪指数日线收盘。返回 {date: close}"""
-    r = requests.get("https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData",
-                     params={"symbol": sina_symbol, "scale": "240", "ma": "no", "datalen": str(datalen)},
-                     headers=UA, timeout=30)
-    return {d["day"]: float(d["close"]) for d in r.json()}
+    """新浪指数日线收盘。返回 {date: close}（失败返回空，不崩溃）"""
+    url = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"
+    params = {"symbol": sina_symbol, "scale": "240", "ma": "no", "datalen": str(datalen)}
+    for attempt in range(3):
+        try:
+            r = requests.get(url, params=params, headers=UA, timeout=45)
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, list) and data:
+                return {d["day"]: float(d["close"]) for d in data}
+        except Exception:
+            pass
+        time.sleep(2)
+    return {}
 
 
 def fetch_index_mcap(secid):
