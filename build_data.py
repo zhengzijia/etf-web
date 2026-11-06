@@ -36,9 +36,10 @@ TOP_N = 10  # 每个指数取前 N 大 ETF
 
 # 指数：东财 secid + 新浪代码
 INDEX_META = {
+    "上证50":  {"secid": "1.000016", "sina": "sh000016"},
     "沪深300": {"secid": "1.000300", "sina": "sh000300"},
     "中证500": {"secid": "1.000905", "sina": "sh000905"},
-    "上证50":  {"secid": "1.000016", "sina": "sh000016"},
+    "中证1000": {"secid": "1.000852", "sina": "sh000852"},
     "创业板指": {"secid": "0.399006", "sina": "sz399006"},
     "科创50":  {"secid": "1.000688", "sina": "sh000688"},
 }
@@ -50,6 +51,7 @@ MCAP_FALLBACK = {
     "1.000016": 21.61e12,   # 上证50（估，总市值×0.90）
     "0.399006": 12.80e12,   # 创业板指（估，总市值×0.88）
     "1.000688": 3.622e12,   # 科创50 流通市值
+    "1.000852": 10.50e12,   # 中证1000（估）
 }
 
 # 跟踪各指数的主要 ETF 候选（最终按最新规模取前 N 大）
@@ -62,6 +64,7 @@ ETF_CANDIDATES = {
     "创业板指": ["159915", "159952", "159948", "159977", "159958", "159908", "159971",
                  "159964", "159956", "159957", "159821", "159810", "159205", "159247"],
     "科创50":  ["588000", "588080", "588050", "588090", "588180", "588020", "588450", "588870", "589360"],
+    "中证1000": ["512100", "159845", "512250", "512380", "159629", "159633", "512600", "159866"],
 }
 
 
@@ -130,8 +133,15 @@ def _szse_scale(start: str, end: str):
               "txtStart": f"{start[:4]}-{start[4:6]}-{start[6:]}",
               "txtEnd": f"{end[:4]}-{end[4:6]}-{end[6:]}",
               "jjlb": "ETF", "random": str(random.random())}
-    r = requests.get(url, params=params, headers=headers, timeout=30)
-    r.raise_for_status()
+    for attempt in range(3):
+        try:
+            r = requests.get(url, params=params, headers=headers, timeout=45)
+            r.raise_for_status()
+            break
+        except Exception:
+            if attempt == 2:
+                raise
+            time.sleep(2)
     df = pd.read_excel(io.BytesIO(r.content), engine="openpyxl").dropna(how="all")
     if df.empty:
         return pd.DataFrame(columns=["日期", "基金代码", "基金份额"])
@@ -165,8 +175,15 @@ def fetch_sse_shares(dates):
                   "sqlId": "COMMON_SSE_ZQPZ_ETFZL_XXPL_ETFGM_SEARCH_L",
                   "STAT_DATE": d}
         try:
-            r = requests.get(url, params=params, headers=headers, timeout=30)
-            data = r.json()
+            for attempt in range(3):
+                try:
+                    r = requests.get(url, params=params, headers=headers, timeout=45)
+                    data = r.json()
+                    break
+                except Exception:
+                    if attempt == 2:
+                        raise
+                    time.sleep(1)
             for row in data.get("result", []):
                 code = str(row.get("SEC_CODE", ""))
                 stat = row.get("STAT_DATE", "")
@@ -485,7 +502,7 @@ Object.entries(series).forEach(function(entry, idx) {
     backgroundColor: 'transparent',
     color: ['#5470c6', '#fac858'],
     tooltip: { trigger: 'axis' },
-    legend: { top: 0, right: 10, textStyle: { color: '#c9cfd8' } },
+    legend: { top: 0, left: 'center', textStyle: { color: '#c9cfd8' } },
     grid: { left: 60, right: 60, top: 34, bottom: 28 },
     xAxis: { type: 'time', axisLabel: { color: '#8b93a1' }, axisLine: { lineStyle: { color: '#333' } } },
     yAxis: [
