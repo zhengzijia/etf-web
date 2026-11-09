@@ -391,6 +391,7 @@ def main():
     sendkey = os.environ.get("SERVER_KEY")
     if sendkey:
         lines = []
+        latest_d = None
         for name in result:
             ratio_map = result[name]["ratio"]
             shares_map = result[name].get("total_shares", {})
@@ -399,6 +400,8 @@ def main():
                 continue
             ds = sorted(ratio_map)
             cur_d, prev_d = ds[-1], (ds[-2] if len(ds) >= 2 else None)
+            if latest_d is None or cur_d > latest_d:
+                latest_d = cur_d
             seg = f"占比 {ratio_map[cur_d]:.2f}%"
             if prev_d:
                 seg += f"（{ratio_map[cur_d] - ratio_map[prev_d]:+.2f}pp）"
@@ -409,8 +412,9 @@ def main():
             if cur_d in level_map:
                 seg += f"；指数点位 {level_map[cur_d]:.1f}"
             lines.append(f"- {name} · {seg}")
-        title = f"📊 ETF占比更新 {today.strftime('%Y-%m-%d')}"
-        content = "前10大ETF市值 / 指数流通市值\n\n" + "\n".join(lines)
+        latest_d = latest_d or today.strftime("%Y-%m-%d")
+        title = f"📊 ETF占比更新 {latest_d}"
+        content = f"{latest_d} 收盘 · 前10大ETF市值 / 指数流通市值\n\n" + "\n".join(lines)
         try:
             r = requests.post(f"https://sctapi.ftqq.com/{sendkey}.send",
                               data={"title": title, "desp": content}, timeout=15)
