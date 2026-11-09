@@ -18,6 +18,7 @@ import os
 import io
 import time
 import random
+import concurrent.futures
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
@@ -162,38 +163,48 @@ def _szse_scale(start: str, end: str):
     return df[["日期", "基金代码", "基金份额"]]
 
 
-def fetch_sse_shares(dates):
-    """上交所 ETF 每日份额（份）。dates 为交易日列表（YYYY-MM-DD）。返回 {code: {date: shares}}"""
-    out = {}
+def _sse_one_date(d):
+    """拉取单个交易日 d 的上交所 ETF 份额。返回 {code: {date: shares}}（失败返回空）"""
     url = "https://query.sse.com.cn/commonQuery.do"
     headers = {"Referer": "https://www.sse.com.cn/", "User-Agent": UA["User-Agent"]}
-    total = len(dates)
-    for i, d in enumerate(dates):
-        params = {"isPagination": "true", "pageHelp.pageSize": "10000",
-                  "pageHelp.pageNo": "1", "pageHelp.beginPage": "1",
-                  "pageHelp.cacheSize": "1", "pageHelp.endPage": "1",
-                  "sqlId": "COMMON_SSE_ZQPZ_ETFZL_XXPL_ETFGM_SEARCH_L",
-                  "STAT_DATE": d}
+    params = {"isPagination": "true", "pageHelp.pageSize": "10000",
+              "pageHelp.pageNo": "1", "pageHelp.beginPage": "1",
+              "pageHelp.cacheSize": "1", "pageHelp.endPage": "1",
+              "sqlId": "COMMON_SSE_ZQPZ_ETFZL_XXPL_ETFGM_SEARCH_L",
+              "STAT_DATE": d}
+    res = {}
+    for attempt in range(3):
         try:
-            for attempt in range(3):
-                try:
-                    r = requests.get(url, params=params, headers=headers, timeout=45)
-                    data = r.json()
-                    break
-                except Exception:
-                    if attempt == 2:
-                        raise
-                    time.sleep(1)
+            r = requests.get(url, params=params, headers=headers, timeout=45)
+            data = r.json()
             for row in data.get("result", []):
                 code = str(row.get("SEC_CODE", ""))
                 stat = row.get("STAT_DATE", "")
                 vol = row.get("TOT_VOL")
                 if code and vol is not None:
-                    out.setdefault(code, {})[str(stat)[:10]] = float(vol) * 10000
+                    res.setdefault(code, {})[str(stat)[:10]] = float(vol) * 10000
+            return res
         except Exception:
-            pass
-        if (i + 1) % 100 == 0:
-            print(f"  SSE 进度 {i + 1}/{total}")
+            if attempt == 2:
+                return {}
+            time.sleep(1)
+    return {}
+
+
+def fetch_sse_shares(dates):
+    """上交所 ETF 每日份额（份）。dates 为交易日列表（YYYY-MM-DD）。返回 {code: {date: shares}}
+
+    逐日接口在上交所侧对海外 IP 限流严重，全量(~950日)串行要数小时，改为并发拉取。"""
+    out = {}
+    total = len(dates)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
+        futures = [ex.submit(_sse_one_date, d) for d in dates]
+        for i, fut in enumerate(concurrent.futures.as_completed(futures), 1):
+            res = fut.result()
+            for code, dd in res.items():
+                out.setdefault(code, {}).update(dd)
+            if i % 100 == 0:
+                print(f"  SSE 进度 {i}/{total}")
     return out
 
 
