@@ -2,7 +2,7 @@ name: Update web data
 
 on:
   schedule:
-    - cron: "30 23 * * 0-5"  # 北京时间 07:30 = UTC 23:30（前一自然日），周一至周六；深市份额~07:00 发布
+    - cron: "30 19 * * 0-5"  # 北京时间 03:30 = UTC 19:30（前一自然日），周一至周六；提前触发吸收 GitHub 调度延迟，脚本内等到 07:30 再抓深市份额
   workflow_dispatch:
 
 permissions:

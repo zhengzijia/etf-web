@@ -19,7 +19,7 @@ import io
 import time
 import random
 import concurrent.futures
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 import requests
@@ -266,6 +266,17 @@ def fetch_index_mcap(secid):
 
 # ============ 主流程 ============
 def main():
+    # 对齐到北京时间 07:30（深市份额 ~07:00 发布，留缓冲）。
+    # cron 提前到 03:30 触发以吸收 GitHub 调度器约 4 小时的延迟；
+    # 若实际触发早于 07:30，则睡眠等待，确保拉到完整的深市份额。
+    BJ = timezone(timedelta(hours=8))
+    now_bj = datetime.now(BJ)
+    target = now_bj.replace(hour=7, minute=30, second=0, microsecond=0)
+    if now_bj < target:
+        wait_sec = (target - now_bj).total_seconds()
+        print(f"等待深市份额发布，至北京时间 07:30（还需约 {wait_sec / 60:.0f} 分钟）")
+        time.sleep(wait_sec)
+
     today = datetime.now()
     end_str = today.strftime("%Y-%m-%d")  # 动态结束日期（含今天）
 
