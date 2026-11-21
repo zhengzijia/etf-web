@@ -313,6 +313,18 @@ def main():
         sse = fetch_sse_shares(trade_dates)
     else:
         _merge(sse, fetch_sse_shares(trade_dates[-10:]))
+    # 最新交易日上交所份额缺失则等待重试（上交所周五数据可能晚于深交所发布，避免上证50等 SSE 指数缺最新一天）
+    if trade_dates:
+        latest_d = trade_dates[-1]
+        for attempt in range(8):
+            if any(latest_d in (sh or {}) for sh in sse.values()):
+                break
+            if attempt > 0:
+                print(f"上交所 {latest_d} 份额缺失，等待 5 分钟后重试（{attempt + 1}/8）...")
+                time.sleep(300)
+            else:
+                print(f"上交所 {latest_d} 份额缺失，立即重试...")
+            _merge(sse, fetch_sse_shares([latest_d]))
     save_cache("sse_shares", sse)
     print(f"上交所份额: {len(sse)} 只基金")
 
@@ -411,8 +423,8 @@ def main():
                 continue
             ds = sorted(ratio_map)
             cur_d, prev_d = ds[-1], (ds[-2] if len(ds) >= 2 else None)
-            if latest_d is None or cur_d > latest_d:
-                latest_d = cur_d
+            if latest_d is None or cur_d < latest_d:
+                latest_d = cur_d  # 取各指数共同的完整收盘日（避免上证所缺最新一天时标题与内容错位）
             seg = f"占比 {ratio_map[cur_d]:.2f}%"
             if prev_d:
                 seg += f"（{ratio_map[cur_d] - ratio_map[prev_d]:+.2f}pp）"
